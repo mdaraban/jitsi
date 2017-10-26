@@ -115,7 +115,7 @@ public class LoginByPasswordStrategy
      * @return always true.
      * @throws XMPPException
      */
-    public boolean login(XMPPConnection connection, String userName,
+    public boolean login(Connection connection, String userName,
             String resource)
             throws XMPPException
     {
@@ -180,7 +180,7 @@ public class LoginByPasswordStrategy
      * @throws GeneralSecurityException
      */
     public SSLContext createSslContext(CertificateService cs,
-            X509TrustManager trustManager)
+            X509ExtendedTrustManager trustManager)
             throws GeneralSecurityException
     {
         return cs.getSSLContext(trustManager);

@@ -70,7 +70,7 @@ public class AnonymousLoginStrategy
     }
 
     @Override
-    public boolean login(XMPPConnection connection, String userName,
+    public boolean login(Connection connection, String userName,
                          String resource)
         throws XMPPException
     {
@@ -87,7 +87,7 @@ public class AnonymousLoginStrategy
 
     @Override
     public SSLContext createSslContext(CertificateService certificateService,
-                                       X509TrustManager trustManager)
+        X509ExtendedTrustManager trustManager)
         throws GeneralSecurityException
     {
         return null;

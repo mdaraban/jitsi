@@ -19,6 +19,8 @@ package net.java.sip.communicator.service.protocol;
 
 import org.jivesoftware.smack.packet.*;
 
+import java.util.*;
+
 /**
  * The operation set provides functionality specific to Jitsi Meet WebRTC
  * conference and is currently used in the SIP gateway.
@@ -54,6 +56,17 @@ public interface OperationSetJitsiMeetTools
      */
     public void sendPresenceExtension(ChatRoom chatRoom,
                                       PacketExtension extension);
+
+    /**
+     * Removes given <tt>PacketExtension</tt> from the multi user chat presence
+     * and sends presence update packet to the chat room.
+     * @param chatRoom the <tt>ChatRoom</tt> for which the presence will be
+     *                 updated.
+     * @param extension the <tt>PacketExtension</tt> to be removed from the MUC
+     *                  presence.
+     */
+    public void removePresenceExtension(ChatRoom chatRoom,
+                                        PacketExtension extension);
 
     /**
      * Sets the status message of our MUC presence and sends presence status
@@ -92,10 +105,12 @@ public interface OperationSetJitsiMeetTools
          * @param call the incoming {@link Call} instance.
          * @param jitsiMeetRoom the name of multi user chat room that is hosting
          *                      Jitsi Meet conference.
-         * @param jitsiMeetRoomPass optional password required to join conference
-         *                          room(if it is protected)
+         * @param extraData extra data passes for this request in the form
+         *                  of Map<name, value>.
          */
         void onJoinJitsiMeetRequest(
-            Call call, String jitsiMeetRoom, String jitsiMeetRoomPass);
+            Call call,
+            String jitsiMeetRoom,
+            Map<String, String> extraData);
     }
 }

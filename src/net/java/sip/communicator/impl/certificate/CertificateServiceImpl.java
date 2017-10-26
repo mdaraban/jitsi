@@ -211,49 +211,6 @@ public class CertificateServiceImpl
             System.getProperties().remove("javax.net.ssl.trustStorePassword");
     }
 
-    /**
-     * Appends an index number to the alias of each entry in the KeyStore.
-     * 
-     * The Windows TrustStore might contain multiple entries with the same
-     * "Friendly Name", which is directly used as the "Alias" for the KeyStore.
-     * As all operations of the KeyStore operate with these non-unique names,
-     * PKIX path building could fail and in the end lead to certificate warnings
-     * for perfectly valid certificates.
-     * 
-     * @throws Exception when the aliases could not be renamed.
-     */
-    private static int keyStoreAppendIndex(KeyStore ks) throws Exception
-    {
-        Field keyStoreSpiField = ks.getClass().getDeclaredField("keyStoreSpi");
-        keyStoreSpiField.setAccessible(true);
-        KeyStoreSpi keyStoreSpi = (KeyStoreSpi) keyStoreSpiField.get(ks);
-
-        if ("sun.security.mscapi.KeyStore$ROOT".equals(keyStoreSpi.getClass()
-            .getName()))
-        {
-            Field entriesField =
-                keyStoreSpi.getClass().getEnclosingClass()
-                    .getDeclaredField("entries");
-            entriesField.setAccessible(true);
-            Collection<?> entries =
-                (Collection<?>) entriesField.get(keyStoreSpi);
-
-            int i = 0;
-            for (Object entry : entries)
-            {
-                Field aliasField = entry.getClass().getDeclaredField("alias");
-                aliasField.setAccessible(true);
-                String alias = (String) aliasField.get(entry);
-                aliasField.set(entry,
-                    alias.concat("_").concat(Integer.toString(i++)));
-            }
-
-            return i;
-        }
-
-        return -1;
-    }
-
     // ------------------------------------------------------------------------
     // Client authentication configuration
     // ------------------------------------------------------------------------
@@ -401,9 +358,9 @@ public class CertificateServiceImpl
      * (non-Javadoc)
      *
      * @see net.java.sip.communicator.service.certificate.CertificateService#
-     * getSSLContext(javax.net.ssl.X509TrustManager)
+     * getSSLContext(javax.net.ssl.X509ExtendedTrustManager)
      */
-    public SSLContext getSSLContext(X509TrustManager trustManager)
+    public SSLContext getSSLContext(X509ExtendedTrustManager trustManager)
         throws GeneralSecurityException
     {
         try
@@ -528,7 +485,7 @@ public class CertificateServiceImpl
      * getSSLContext(java.lang.String, javax.net.ssl.X509TrustManager)
      */
     public SSLContext getSSLContext(String clientCertConfig,
-        X509TrustManager trustManager)
+        X509ExtendedTrustManager trustManager)
         throws GeneralSecurityException
     {
         try
@@ -571,7 +528,7 @@ public class CertificateServiceImpl
      * getSSLContext(javax.net.ssl.KeyManager[], javax.net.ssl.X509TrustManager)
      */
     public SSLContext getSSLContext(KeyManager[] keyManagers,
-        X509TrustManager trustManager)
+        X509ExtendedTrustManager trustManager)
         throws GeneralSecurityException
     {
         try
@@ -598,7 +555,7 @@ public class CertificateServiceImpl
      * net.java.sip.communicator.service.certificate
      * .CertificateService#getTrustManager(java.lang.Iterable)
      */
-    public X509TrustManager getTrustManager(Iterable<String> identitiesToTest)
+    public X509ExtendedTrustManager getTrustManager(Iterable<String> identitiesToTest)
         throws GeneralSecurityException
     {
         return getTrustManager(
@@ -615,7 +572,7 @@ public class CertificateServiceImpl
      * net.java.sip.communicator.service.certificate.CertificateService
      * #getTrustManager(java.lang.String)
      */
-    public X509TrustManager getTrustManager(String identityToTest)
+    public X509ExtendedTrustManager getTrustManager(String identityToTest)
         throws GeneralSecurityException
     {
         return getTrustManager(
@@ -634,7 +591,7 @@ public class CertificateServiceImpl
      * net.java.sip.communicator.service.certificate.CertificateMatcher,
      * net.java.sip.communicator.service.certificate.CertificateMatcher)
      */
-    public X509TrustManager getTrustManager(
+    public X509ExtendedTrustManager getTrustManager(
         String identityToTest,
         CertificateMatcher clientVerifier,
         CertificateMatcher serverVerifier)
@@ -656,14 +613,14 @@ public class CertificateServiceImpl
      * net.java.sip.communicator.service.certificate.CertificateMatcher,
      * net.java.sip.communicator.service.certificate.CertificateMatcher)
      */
-    public X509TrustManager getTrustManager(
+    public X509ExtendedTrustManager getTrustManager(
         final Iterable<String> identitiesToTest,
         final CertificateMatcher clientVerifier,
         final CertificateMatcher serverVerifier)
         throws GeneralSecurityException
     {
         // obtain the default X509 trust manager
-        X509TrustManager defaultTm = null;
+        X509ExtendedTrustManager defaultTm = null;
         TrustManagerFactory tmFactory =
             TrustManagerFactory.getInstance(TrustManagerFactory
                 .getDefaultAlgorithm());
@@ -678,10 +635,6 @@ public class CertificateServiceImpl
             {
                 ks = KeyStore.getInstance(tsType);
                 ks.load(null, null);
-                int numEntries = keyStoreAppendIndex(ks);
-                logger.info(
-                    "Using Windows-ROOT. Aliases sucessfully renamed on "
-                        + numEntries + " root certificates.");
             }
             catch (Exception e)
             {
@@ -692,9 +645,9 @@ public class CertificateServiceImpl
         tmFactory.init(ks);
         for (TrustManager m : tmFactory.getTrustManagers())
         {
-            if (m instanceof X509TrustManager)
+            if (m instanceof X509ExtendedTrustManager)
             {
-                defaultTm = (X509TrustManager) m;
+                defaultTm = (X509ExtendedTrustManager) m;
                 break;
             }
         }
@@ -702,12 +655,10 @@ public class CertificateServiceImpl
             throw new GeneralSecurityException(
                 "No default X509 trust manager found");
 
-        final X509TrustManager tm = defaultTm;
+        final X509ExtendedTrustManager tm = defaultTm;
 
-        return new X509TrustManager()
+        return new X509ExtendedTrustManager()
         {
-            private boolean serverCheck;
-
             public X509Certificate[] getAcceptedIssuers()
             {
                 return tm.getAcceptedIssuers();
@@ -716,19 +667,46 @@ public class CertificateServiceImpl
             public void checkServerTrusted(X509Certificate[] chain,
                 String authType) throws CertificateException
             {
-                serverCheck = true;
-                checkCertTrusted(chain, authType);
+                checkCertTrusted(chain, authType, true);
             }
 
             public void checkClientTrusted(X509Certificate[] chain,
                 String authType) throws CertificateException
             {
-                serverCheck = false;
-                checkCertTrusted(chain, authType);
+                checkCertTrusted(chain, authType, false);
+            }
+
+            @Override
+            public void checkClientTrusted(X509Certificate[] chain,
+                String authType, Socket socket) throws CertificateException
+            {
+                checkCertTrusted(chain, authType, false);
+            }
+
+            @Override
+            public void checkServerTrusted(X509Certificate[] chain,
+                String authType, Socket socket) throws CertificateException
+            {
+                checkCertTrusted(chain, authType, true);
+            }
+
+            @Override
+            public void checkClientTrusted(X509Certificate[] chain,
+                String authType, SSLEngine engine) throws CertificateException
+            {
+                checkCertTrusted(chain, authType, false);
+            }
+
+            @Override
+            public void checkServerTrusted(X509Certificate[] chain,
+                String authType, SSLEngine engine) throws CertificateException
+            {
+                checkCertTrusted(chain, authType, true);
             }
 
             private void checkCertTrusted(X509Certificate[] chain,
-                String authType) throws CertificateException
+                String authType, boolean serverCheck)
+                    throws CertificateException
             {
                 // check and default configurations for property
                 // if missing default is null - false
@@ -784,8 +762,7 @@ public class CertificateServiceImpl
                         propNames.add(propName);
 
                         message =
-                            R.getI18NString("service.gui."
-                                + "CERT_DIALOG_DESCRIPTION_TXT_NOHOST",
+                            R.getI18NString("service.gui.CERT_DIALOG_DESCRIPTION_TXT_NOHOST",
                                 new String[] {
                                     appName
                                 }
@@ -809,8 +786,7 @@ public class CertificateServiceImpl
                         {
                             message =
                                 R.getI18NString(
-                                    "service.gui."
-                                    + "CERT_DIALOG_DESCRIPTION_TXT",
+                                    "service.gui.CERT_DIALOG_DESCRIPTION_TXT",
                                     new String[] {
                                         appName,
                                         identitiesToTest.toString()
@@ -821,8 +797,7 @@ public class CertificateServiceImpl
                         {
                             message =
                                 R.getI18NString(
-                                    "service.gui."
-                                    + "CERT_DIALOG_PEER_DESCRIPTION_TXT",
+                                    "service.gui.CERT_DIALOG_PEER_DESCRIPTION_TXT",
                                     new String[] {
                                         appName,
                                         identitiesToTest.toString()
